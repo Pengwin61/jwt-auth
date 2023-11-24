@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -57,6 +56,13 @@ func Singup(c *gin.Context) {
 
 func Login(c *gin.Context) {
 
+	if len(persons) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Users list is empty",
+		})
+		return
+	}
+
 	if c.Bind(&body) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Failed to read body",
@@ -92,14 +98,19 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"token": tokenString,
-	})
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("Authorization", tokenString, 3600, "", "", false, true)
+}
 
+func Validate(c *gin.Context) {
+	user, _ := c.Get("user")
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": user,
+	})
 }
 
 func Result(c *gin.Context) {
-	fmt.Println(persons)
 	c.JSON(http.StatusOK, gin.H{
 		"persons": persons,
 	})
