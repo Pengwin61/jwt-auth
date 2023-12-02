@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"fmt"
+	"jwt-auth/internal/connections"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -11,10 +13,14 @@ import (
 )
 
 func RequireAuth(c *gin.Context) {
+
 	// Get the cookie off request
 	tokenString, err := c.Cookie("Authorization")
 	if err != nil {
-		c.AbortWithStatus(http.StatusUnauthorized)
+		// c.AbortWithStatus(http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized, token is not found",
+		})
 	}
 
 	// Decode/Validate it
@@ -22,20 +28,38 @@ func RequireAuth(c *gin.Context) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-
 		return []byte(os.Getenv("SECRET")), nil
 	})
+	if err != nil {
+		// c.AbortWithStatus(http.StatusUnauthorized)
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "unauthorized, token is not valid",
+		})
+	}
 
+	// Check the expiration
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		if float64(time.Now().Unix()) > claims["exp"].(float64) {
-			c.AbortWithStatus(http.StatusUnauthorized)
+			// c.AbortWithStatus(http.StatusUnauthorized)
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "token expired",
+			})
 		}
 	}
 
-	// Find user by email
+	raw := token.Claims.(jwt.MapClaims)["email"]
 
+	// Find user by email in ldap
+
+	user, isAdmin, _ := connections.IpaConnetion.CheckUser(raw.(string))
 	// Attach to req
-	// c.Set(("user"), user)
+
+	//
+	ok := strings.Contains(raw.(string), *user)
+	if ok {
+		c.Set(("user"), user)
+		c.Set("isAdmin", isAdmin)
+	}
 
 	// Add user to context
 	if tokenString != "" {

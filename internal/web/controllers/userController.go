@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"jwt-auth/internal/connections"
 	"net/http"
 	"os"
 	"time"
@@ -56,12 +57,12 @@ func Singup(c *gin.Context) {
 
 func Login(c *gin.Context) {
 
-	if len(persons) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Users list is empty",
-		})
-		return
-	}
+	// if len(persons) == 0 {
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"error": "Users list is empty",
+	// 	})
+	// 	return
+	// }
 
 	if c.Bind(&body) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -69,23 +70,38 @@ func Login(c *gin.Context) {
 		})
 	}
 
-	if persons == nil {
+	// Find the user in the LDAP
+
+	ok := connections.LdapConnetion.CheckUser(body.Email, body.Password)
+
+	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "User not found",
-		})
-	}
-	err := bcrypt.CompareHashAndPassword([]byte(persons[0].password), []byte(body.Password))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid password",
 		})
 		return
 	}
 
+	user, isadmin, _ := connections.IpaConnetion.CheckUser(body.Email)
+
+	// if persons == nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"error": "User not found",
+	// 	})
+	// }
+
+	// err := bcrypt.CompareHashAndPassword([]byte(persons[0].password), []byte(body.Password))
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{
+	// 		"error": "Invalid password",
+	// 	})
+	// 	return
+	// }
+
 	// Generate a jwt token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"email": persons[0].Email,
-		"exp":   time.Now().Add(time.Hour * 72).Unix(),
+		"email":   user,
+		"exp":     time.Now().Add(time.Hour * 72).Unix(),
+		"isAdmin": isadmin,
 	})
 
 	//
@@ -104,9 +120,11 @@ func Login(c *gin.Context) {
 
 func Validate(c *gin.Context) {
 	user, _ := c.Get("user")
+	isAdmin, _ := c.Get("isAdmin")
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": user,
+		"username": user,
+		"isAdmin":  isAdmin,
 	})
 }
 

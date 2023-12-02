@@ -2,6 +2,7 @@ package main
 
 import (
 	"jwt-auth/internal/configs"
+	"jwt-auth/internal/connections"
 	"jwt-auth/internal/web/controllers"
 	"jwt-auth/internal/web/middleware"
 	"os"
@@ -12,6 +13,8 @@ import (
 func main() {
 
 	configs.InitConfigs()
+
+	connections.IPAClient()
 
 	r := gin.Default()
 
